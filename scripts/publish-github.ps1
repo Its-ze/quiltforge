@@ -106,12 +106,14 @@ if ((& git -C $Root remote) -contains 'origin') { Invoke-ProjectGit @('remote', 
 else { Invoke-ProjectGit @('remote', 'add', 'origin', $remoteRepo.clone_url) }
 Push-WithToken $token
 
-$pagesBody = @{ build_type = 'workflow' } | ConvertTo-Json
+$pagesBody = @{ build_type = 'legacy'; source = @{ branch = 'main'; path = '/docs' } } | ConvertTo-Json
 try {
     Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Owner/$Repo/pages" -Method Post -Body $pagesBody -ContentType 'application/json' | Out-Null
 } catch {
     if ($_.Exception.Response.StatusCode.value__ -notin 409, 422) { throw }
+    Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Owner/$Repo/pages" -Method Put -Body $pagesBody -ContentType 'application/json' | Out-Null
 }
+Invoke-RestMethod -Headers $headers -Uri "https://api.github.com/repos/$Owner/$Repo/pages/builds" -Method Post | Out-Null
 
 Write-Host "Repository: $($remoteRepo.html_url)"
 Write-Host "Pages: https://$($Owner.ToLower()).github.io/$Repo/"
