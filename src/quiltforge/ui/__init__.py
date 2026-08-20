@@ -1,0 +1,2 @@
+"""QuiltForge user interface."""
+

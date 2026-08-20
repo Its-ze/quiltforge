@@ -1,0 +1,22 @@
+[project]
+name = "quiltforge"
+version = "1.0.0"
+description = "Turn photographs into paintable barn quilt patterns."
+requires-python = ">=3.11"
+dependencies = [
+  "PySide6==6.9.1",
+  "Pillow==11.3.0",
+  "numpy==2.2.6",
+  "reportlab==4.4.3",
+]
+
+[project.scripts]
+quiltforge = "quiltforge.main:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+

@@ -1,0 +1,12 @@
+QuiltForge — Barn Quilt Studio
+Copyright © 2026 Zach Skeens. All rights reserved.
+
+Permission is granted to install and use this software for personal and commercial
+barn quilt design work. Redistribution, resale, reverse engineering, or creation of
+derivative software products is not permitted without written permission from the
+copyright holder.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
