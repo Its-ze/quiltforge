@@ -4,7 +4,7 @@ from collections import Counter
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageOps
+from PIL import Image, ImageEnhance, ImageOps
 
 from .models import Pattern, Shape
 
@@ -13,6 +13,15 @@ STYLE_BLOCKS = "Blocks"
 STYLE_TRIANGLES = "Triangles"
 STYLE_DIAMONDS = "Diamonds"
 SUPPORTED_STYLES = (STYLE_BLOCKS, STYLE_TRIANGLES, STYLE_DIAMONDS)
+
+COLOR_BOLD = "Bold & clean"
+COLOR_BALANCED = "Balanced"
+COLOR_NATURAL = "Natural"
+SUPPORTED_COLOR_STYLES = (COLOR_BOLD, COLOR_BALANCED, COLOR_NATURAL)
+
+FRAMING_CROP = "Crop to square"
+FRAMING_FIT = "Fit full image"
+SUPPORTED_FRAMING = (FRAMING_CROP, FRAMING_FIT)
 
 
 def _hex(rgb: tuple[int, int, int] | np.ndarray) -> str:
@@ -25,33 +34,84 @@ def _rgb(value: str) -> np.ndarray:
     return np.array([int(value[i : i + 2], 16) for i in (0, 2, 4)], dtype=np.float32)
 
 
-def _nearest_color(sample: np.ndarray, palette: list[np.ndarray]) -> int:
-    # Weighted distance tracks human brightness perception better than raw RGB.
-    weights = np.array([0.30, 0.59, 0.11], dtype=np.float32)
-    distances = [float(np.sum(weights * np.square(sample - color))) for color in palette]
-    return int(np.argmin(distances))
+def _oklab(rgb: np.ndarray) -> np.ndarray:
+    """Convert RGB values to OKLab for perceptually useful color distances."""
+    values = np.asarray(rgb, dtype=np.float32) / 255.0
+    linear = np.where(values <= 0.04045, values / 12.92, ((values + 0.055) / 1.055) ** 2.4)
+    r, g, b = np.moveaxis(linear, -1, 0)
+    l = np.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+    m = np.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+    s = np.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+    return np.stack(
+        (
+            0.2104542553 * l + 0.793617785 * m - 0.0040720468 * s,
+            1.9779984951 * l - 2.428592205 * m + 0.4505937099 * s,
+            0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+        ),
+        axis=-1,
+    )
 
 
 def _extract_palette(image: Image.Image, count: int) -> list[str]:
     preview = image.resize((256, 256), Image.Resampling.LANCZOS)
-    quantized = preview.quantize(colors=count, method=Image.Quantize.MEDIANCUT)
+    # Start with extra candidates, then pick colors that are both common and
+    # clearly separated. This avoids a palette full of similar muddy midtones.
+    quantized = preview.quantize(
+        colors=min(64, max(count * 8, 24)),
+        method=Image.Quantize.FASTOCTREE,
+        dither=Image.Dither.NONE,
+    )
     raw_palette = quantized.getpalette() or []
     usage = Counter(quantized.getdata())
-    colors: list[tuple[int, tuple[int, int, int]]] = []
-    for index, frequency in usage.most_common(count):
+    candidates: list[tuple[int, tuple[int, int, int]]] = []
+    for index, frequency in usage.most_common():
         start = index * 3
         rgb = tuple(raw_palette[start : start + 3])
         if len(rgb) == 3:
-            colors.append((frequency, rgb))
-    # Stable frequency order keeps the most important paint colors first.
-    return [_hex(rgb) for _, rgb in colors]
+            candidates.append((frequency, rgb))
+    if not candidates:
+        return ["#000000"] * count
+
+    selected = [candidates[0]]
+    maximum_frequency = candidates[0][0]
+    while len(selected) < count and len(selected) < len(candidates):
+        remaining = [candidate for candidate in candidates if candidate not in selected]
+
+        def score(candidate: tuple[int, tuple[int, int, int]]) -> float:
+            frequency, rgb = candidate
+            color = _oklab(np.asarray(rgb))
+            separation = min(float(np.linalg.norm(color - _oklab(np.asarray(chosen)))) for _, chosen in selected)
+            return (frequency / maximum_frequency) ** 0.35 * separation
+
+        selected.append(max(remaining, key=score))
+    return [_hex(rgb) for _, rgb in selected]
 
 
-def _average(region: np.ndarray, mask: np.ndarray | None = None) -> np.ndarray:
+def _dominant_color(region: np.ndarray, palette: list[np.ndarray], mask: np.ndarray | None = None) -> int:
     pixels = region.reshape(-1, 3) if mask is None else region[mask]
     if pixels.size == 0:
         pixels = region.reshape(-1, 3)
-    return pixels.astype(np.float32).mean(axis=0)
+    # Majority voting creates solid, intentional paint areas instead of muddy
+    # averages at photographic edges.
+    sample = pixels[:: max(1, len(pixels) // 4096)]
+    sample_lab = _oklab(sample)
+    palette_lab = _oklab(np.asarray(palette))
+    distances = np.sum(np.square(sample_lab[:, None, :] - palette_lab[None, :, :]), axis=2)
+    nearest = np.argmin(distances, axis=1)
+    return int(np.bincount(nearest, minlength=len(palette)).argmax())
+
+
+def _prepare_image(image: Image.Image, color_style: str, framing: str) -> Image.Image:
+    if framing == FRAMING_FIT:
+        fitted = ImageOps.contain(image, (768, 768), method=Image.Resampling.LANCZOS)
+        canvas = Image.new("RGB", (768, 768), "#FFF9ED")
+        canvas.paste(fitted, ((768 - fitted.width) // 2, (768 - fitted.height) // 2))
+        image = canvas
+    else:
+        image = ImageOps.fit(image, (768, 768), method=Image.Resampling.LANCZOS)
+    image = ImageOps.autocontrast(image, cutoff=1)
+    saturation = {COLOR_NATURAL: 1.0, COLOR_BALANCED: 1.22, COLOR_BOLD: 1.45}[color_style]
+    return ImageEnhance.Color(image).enhance(saturation)
 
 
 def _shape(points: list[tuple[float, float]], color: int, label: str) -> Shape:
@@ -63,6 +123,8 @@ def generate_pattern(
     grid_size: int = 8,
     palette_size: int = 6,
     style: str = STYLE_TRIANGLES,
+    color_style: str = COLOR_BOLD,
+    framing: str = FRAMING_CROP,
 ) -> Pattern:
     """Convert an image into grid-snapped, paintable geometric polygons."""
     if grid_size < 2 or grid_size > 32:
@@ -71,11 +133,15 @@ def generate_pattern(
         raise ValueError("Palette size must be between 2 and 16")
     if style not in SUPPORTED_STYLES:
         raise ValueError(f"Unsupported style: {style}")
+    if color_style not in SUPPORTED_COLOR_STYLES:
+        raise ValueError(f"Unsupported color style: {color_style}")
+    if framing not in SUPPORTED_FRAMING:
+        raise ValueError(f"Unsupported framing: {framing}")
 
     with Image.open(image_path) as opened:
         original_size = opened.size
         image = ImageOps.exif_transpose(opened).convert("RGB")
-        image = ImageOps.fit(image, (768, 768), method=Image.Resampling.LANCZOS)
+        image = _prepare_image(image, color_style, framing)
 
     palette_hex = _extract_palette(image, palette_size)
     palette_rgb = [_rgb(color) for color in palette_hex]
@@ -99,7 +165,7 @@ def generate_pattern(
 
             def add(points: list[tuple[float, float]], mask: np.ndarray | None = None) -> None:
                 nonlocal label_number
-                index = _nearest_color(_average(region, mask), palette_rgb)
+                index = _dominant_color(region, palette_rgb, mask)
                 shapes.append(_shape(points, index, str(label_number)))
                 label_number += 1
 
@@ -132,4 +198,3 @@ def generate_pattern(
 def color_usage(pattern: Pattern) -> list[tuple[int, str, int]]:
     counts = Counter(shape.color_index for shape in pattern.shapes)
     return [(index + 1, color, counts[index]) for index, color in enumerate(pattern.palette)]
-

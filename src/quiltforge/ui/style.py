@@ -5,6 +5,8 @@ QWidget {
     font-size: 10pt;
 }
 QMainWindow, QWidget#AppRoot { background: #F5F1E8; }
+QDialog, QMessageBox { background: #F5F1E8; }
+QDialog QLabel, QMessageBox QLabel { color: #183247; }
 QFrame#Sidebar { background: #102A43; border: none; }
 QLabel#BrandName { color: #FFF9ED; font-size: 17pt; font-weight: 700; }
 QLabel#BrandCaption { color: #AFC4D2; font-size: 9pt; }
@@ -41,10 +43,22 @@ QLineEdit, QComboBox, QSpinBox, QDoubleSpinBox {
 }
 QLineEdit:focus, QComboBox:focus, QSpinBox:focus, QDoubleSpinBox:focus { border: 2px solid #2E7D80; }
 QComboBox::drop-down { border: none; width: 24px; }
+QComboBox QAbstractItemView {
+    color: #183247; background: #FFFDF8; border: 1px solid #BEB5A8;
+    selection-color: white; selection-background-color: #D6533D;
+    outline: 0; padding: 4px;
+}
+QComboBox QAbstractItemView::item { min-height: 28px; padding: 4px 8px; }
 QSlider::groove:horizontal { height: 5px; background: #D7D0C3; border-radius: 2px; }
 QSlider::handle:horizontal { width: 17px; margin: -6px 0; background: #2E7D80; border-radius: 8px; }
 QCheckBox { spacing: 8px; }
+QCheckBox::indicator {
+    width: 15px; height: 15px; background: white;
+    border: 1px solid #9E968A; border-radius: 3px;
+}
+QCheckBox::indicator:checked { background: #2E7D80; border-color: #1F6669; }
 QScrollArea { border: none; background: transparent; }
+QScrollArea > QWidget > QWidget { background: transparent; }
 QScrollBar:vertical { background: transparent; width: 10px; margin: 2px; }
 QScrollBar::handle:vertical { background: #C7BFB2; border-radius: 5px; min-height: 28px; }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }
@@ -54,4 +68,3 @@ QMenu { background: #FFFDF8; border: 1px solid #D8CDBD; padding: 5px; }
 QMenu::item { padding: 7px 24px 7px 10px; border-radius: 5px; }
 QMenu::item:selected { background: #E9F1F1; }
 """
-

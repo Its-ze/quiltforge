@@ -1,7 +1,8 @@
 param(
     [string]$Owner = 'Its-ze',
     [string]$Repo = 'quiltforge',
-    [string]$Description = 'Offline Windows studio that turns photos into paintable barn quilt patterns.'
+    [string]$Description = 'Offline Windows studio that turns photos into paintable barn quilt patterns.',
+    [string]$CommitMessage = 'Update QuiltForge to 1.1.0'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -99,7 +100,7 @@ $publishPaths = @(
 Invoke-ProjectGit (@('add', '--') + $publishPaths)
 & git -C $Root diff --cached --quiet
 if ($LASTEXITCODE -eq 0) { Write-Host 'No source changes to commit.' }
-elseif ($LASTEXITCODE -eq 1) { Invoke-ProjectGit @('commit', '-m', 'Launch QuiltForge Barn Quilt Studio') }
+elseif ($LASTEXITCODE -eq 1) { Invoke-ProjectGit @('commit', '-m', $CommitMessage) }
 else { throw "git diff --cached --quiet failed with exit code $LASTEXITCODE" }
 
 if ((& git -C $Root remote) -contains 'origin') { Invoke-ProjectGit @('remote', 'set-url', 'origin', $remoteRepo.clone_url) }

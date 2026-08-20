@@ -1,5 +1,5 @@
 #define MyAppName "QuiltForge"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppPublisher "ITSZ Studios"
 #define MyAppURL "https://its-ze.github.io/quiltforge/"
 #define MyAppExeName "QuiltForge.exe"

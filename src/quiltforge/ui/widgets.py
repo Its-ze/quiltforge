@@ -19,7 +19,7 @@ class PatternCanvas(QWidget):
         self.source_pixmap: QPixmap | None = None
         self.view_mode = "Pattern"
         self.show_grid = True
-        self.show_labels = True
+        self.show_labels = False
         self.setMinimumSize(420, 420)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -54,12 +54,12 @@ class PatternCanvas(QWidget):
 
         if self.view_mode == "Original" and self.source_pixmap and not self.source_pixmap.isNull():
             scaled = self.source_pixmap.scaled(
-                int(rect.width()), int(rect.height()), Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                int(rect.width()), int(rect.height()), Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,
             )
-            crop_x = max(0, (scaled.width() - int(rect.width())) // 2)
-            crop_y = max(0, (scaled.height() - int(rect.height())) // 2)
-            painter.drawPixmap(rect.toRect(), scaled, QRectF(crop_x, crop_y, rect.width(), rect.height()).toRect())
+            x = round(rect.center().x() - scaled.width() / 2)
+            y = round(rect.center().y() - scaled.height() / 2)
+            painter.drawPixmap(x, y, scaled)
         elif self.pattern:
             self._paint_pattern(painter, rect)
         else:
@@ -110,4 +110,3 @@ class PatternCanvas(QWidget):
                 self.pattern_changed.emit()
                 self.update()
                 return
-

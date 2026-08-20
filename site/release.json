@@ -1,6 +1,6 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "platform": "Windows 10 or 11, 64-bit",
-  "installer": "https://github.com/Its-ze/quiltforge/releases/latest/download/QuiltForge-Setup-1.0.0.exe",
-  "portable": "https://github.com/Its-ze/quiltforge/releases/latest/download/QuiltForge-Portable-1.0.0.zip"
+  "installer": "https://github.com/Its-ze/quiltforge/releases/latest/download/QuiltForge-Setup-1.1.0.exe",
+  "portable": "https://github.com/Its-ze/quiltforge/releases/latest/download/QuiltForge-Portable-1.1.0.zip"
 }

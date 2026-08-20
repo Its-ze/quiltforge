@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication, QTimer, Qt
-from PySide6.QtGui import QFont, QFontDatabase
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QPalette
 from PySide6.QtWidgets import QApplication
 
 from .project_store import ProjectStore
@@ -29,6 +29,19 @@ def main() -> int:
         if Path(font_path).exists():
             QFontDatabase.addApplicationFont(font_path)
     app.setStyle("Fusion")
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor("#F5F1E8"))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor("#183247"))
+    palette.setColor(QPalette.ColorRole.Base, QColor("#FFFDF8"))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor("#F1ECE2"))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor("#102A43"))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor("#FFFFFF"))
+    palette.setColor(QPalette.ColorRole.Text, QColor("#183247"))
+    palette.setColor(QPalette.ColorRole.Button, QColor("#E9E1D3"))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor("#183247"))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor("#D6533D"))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor("#FFFFFF"))
+    app.setPalette(palette)
     app.setFont(QFont("Segoe UI", 10))
     app.setStyleSheet(APP_STYLESHEET)
     window = MainWindow(ProjectStore(), resource_dir())

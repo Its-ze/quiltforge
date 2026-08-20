@@ -237,13 +237,13 @@ def _draw_pdf_pattern(c: canvas.Canvas, project: QuiltProject, x: float, y: floa
         c.setStrokeColor(colors.HexColor(NAVY) if project.show_grid else colors.transparent)
         c.setLineWidth(0.35)
         c.drawPath(path, fill=1, stroke=int(project.show_grid))
-        if project.show_labels:
-            cx = x + sum(px for px, _ in shape.points) / len(shape.points) * size
-            cy = y + (1 - sum(py for _, py in shape.points) / len(shape.points)) * size
-            c.setFillColor(colors.HexColor(_text_color(pattern.palette[shape.color_index])))
-            c.setFont("Helvetica-Bold", max(4, min(8, 42 / pattern.grid_size)))
-            c.drawCentredString(cx, cy - 2, str(shape.color_index + 1))
+        # Printable guides always include paint numbers, even when the cleaner
+        # on-screen preview has them hidden.
+        cx = x + sum(px for px, _ in shape.points) / len(shape.points) * size
+        cy = y + (1 - sum(py for _, py in shape.points) / len(shape.points)) * size
+        c.setFillColor(colors.HexColor(_text_color(pattern.palette[shape.color_index])))
+        c.setFont("Helvetica-Bold", max(4, min(8, 42 / pattern.grid_size)))
+        c.drawCentredString(cx, cy - 2, str(shape.color_index + 1))
     c.setStrokeColor(colors.HexColor(NAVY))
     c.setLineWidth(2)
     c.rect(x, y, size, size, fill=0, stroke=1)
-

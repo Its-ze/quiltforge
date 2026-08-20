@@ -27,7 +27,7 @@ Build the complete Windows release with:
 .\scripts\build-release.ps1
 ```
 
-The build script creates `dist\QuiltForge-Setup-1.0.0.exe` and a portable ZIP. Inno Setup 6 is required for the installer.
+The build script creates `dist\QuiltForge-Setup-1.1.0.exe` and a portable ZIP. Inno Setup 6 is required for the installer.
 
 ## Privacy
 
@@ -36,4 +36,3 @@ Source images and projects remain on the user's computer under `%LOCALAPPDATA%\Q
 ## Credits
 
 Made by Zach Skeens, in partnership with ITSZ Studios, and maintained by ITSolutions.Digital.
-

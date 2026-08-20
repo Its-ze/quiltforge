@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime
 from pathlib import Path
+import threading
 
-from PySide6.QtCore import QTimer, Qt, QUrl
+from PySide6.QtCore import QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
@@ -30,10 +31,17 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ..engine import SUPPORTED_STYLES, generate_pattern
+from .. import __version__
+from ..engine import (
+    SUPPORTED_COLOR_STYLES,
+    SUPPORTED_FRAMING,
+    SUPPORTED_STYLES,
+    generate_pattern,
+)
 from ..exports import export_pdf, export_png, export_svg
 from ..models import QuiltProject
 from ..project_store import ProjectStore
+from ..updates import ReleaseInfo, fetch_latest_release, update_available
 from .widgets import PatternCanvas
 
 
@@ -47,12 +55,16 @@ def _clear_layout(layout) -> None:
 
 
 class MainWindow(QMainWindow):
+    update_check_finished = Signal(object, str)
+
     def __init__(self, store: ProjectStore, resources: Path) -> None:
         super().__init__()
         self.store = store
         self.resources = resources
         self.project: QuiltProject | None = None
         self._loading_controls = False
+        self._checking_for_updates = False
+        self.update_check_finished.connect(self._finish_update_check)
 
         self.setWindowTitle("QuiltForge — Barn Quilt Studio")
         self.setMinimumSize(1120, 720)
@@ -118,6 +130,10 @@ class MainWindow(QMainWindow):
             self.nav_buttons.append(button)
         self.nav_buttons[1].setEnabled(False)
         layout.addStretch(1)
+        sidebar_update = QPushButton("Check for updates", objectName="NavButton")
+        sidebar_update.setToolTip("Check GitHub for a newer QuiltForge release")
+        sidebar_update.clicked.connect(self.check_for_updates)
+        layout.addWidget(sidebar_update)
         privacy = QLabel("OFFLINE BY DESIGN\nYour images stay private.", objectName="BrandCaption")
         privacy.setWordWrap(True)
         layout.addWidget(privacy)
@@ -257,6 +273,18 @@ class MainWindow(QMainWindow):
         self.palette_spin.setValue(6)
         self.palette_spin.valueChanged.connect(self.schedule_regenerate)
         layout.addWidget(self.palette_spin)
+        layout.addWidget(QLabel("Color treatment", objectName="Muted"))
+        self.color_style_combo = QComboBox()
+        self.color_style_combo.addItems(SUPPORTED_COLOR_STYLES)
+        self.color_style_combo.setToolTip("Bold & clean separates paint colors most strongly")
+        self.color_style_combo.currentTextChanged.connect(self.schedule_regenerate)
+        layout.addWidget(self.color_style_combo)
+        layout.addWidget(QLabel("Image framing", objectName="Muted"))
+        self.framing_combo = QComboBox()
+        self.framing_combo.addItems(SUPPORTED_FRAMING)
+        self.framing_combo.setToolTip("Fit full image keeps the whole photo; crop fills the square")
+        self.framing_combo.currentTextChanged.connect(self.schedule_regenerate)
+        layout.addWidget(self.framing_combo)
         return layout
 
     def _board_settings(self) -> QVBoxLayout:
@@ -278,7 +306,8 @@ class MainWindow(QMainWindow):
         self.grid_check.setChecked(True)
         self.grid_check.toggled.connect(self._save_display_settings)
         self.labels_check = QCheckBox("Show paint numbers")
-        self.labels_check.setChecked(True)
+        self.labels_check.setChecked(False)
+        self.labels_check.setToolTip("Printable PDF guides always include paint numbers")
         self.labels_check.toggled.connect(self._save_display_settings)
         layout.addWidget(self.grid_check)
         layout.addWidget(self.labels_check)
@@ -338,7 +367,7 @@ class MainWindow(QMainWindow):
         card_layout.addWidget(art)
         text_layout = QVBoxLayout()
         text_layout.addWidget(QLabel("QuiltForge", objectName="PageTitle"))
-        version = QLabel("Barn Quilt Studio • Version 1.0.0", objectName="Muted")
+        version = QLabel(f"Barn Quilt Studio • Version {__version__}", objectName="Muted")
         text_layout.addWidget(version)
         description = QLabel(
             "QuiltForge turns your own images into clear, geometric, paint-by-number barn quilt patterns. "
@@ -355,9 +384,15 @@ class MainWindow(QMainWindow):
         credit.setTextFormat(Qt.TextFormat.RichText)
         text_layout.addWidget(credit)
         text_layout.addStretch(1)
+        buttons = QHBoxLayout()
         website = QPushButton("Visit itsolutions.digital", objectName="SecondaryButton")
         website.clicked.connect(lambda: QDesktopServices.openUrl(QUrl("https://itsolutions.digital")))
-        text_layout.addWidget(website, 0, Qt.AlignmentFlag.AlignLeft)
+        update_button = QPushButton("Check for updates", objectName="PrimaryButton")
+        update_button.clicked.connect(self.check_for_updates)
+        buttons.addWidget(update_button)
+        buttons.addWidget(website)
+        buttons.addStretch(1)
+        text_layout.addLayout(buttons)
         card_layout.addLayout(text_layout, 1)
         layout.addWidget(card, 0, Qt.AlignmentFlag.AlignHCenter)
         layout.addStretch(1)
@@ -385,7 +420,9 @@ class MainWindow(QMainWindow):
         howto_action.triggered.connect(lambda: self.navigate(2))
         about_action = QAction("About QuiltForge", self)
         about_action.triggered.connect(lambda: self.navigate(3))
-        help_menu.addActions([howto_action, about_action])
+        update_action = QAction("Check for updates", self)
+        update_action.triggered.connect(self.check_for_updates)
+        help_menu.addActions([howto_action, update_action, about_action])
 
     def navigate(self, index: int) -> None:
         if index == 1 and not self.project:
@@ -496,6 +533,8 @@ class MainWindow(QMainWindow):
         self.style_combo.setCurrentText(self.project.style)
         self.grid_combo.setCurrentText(str(self.project.grid_size))
         self.palette_spin.setValue(self.project.palette_size)
+        self.color_style_combo.setCurrentText(self.project.color_style)
+        self.framing_combo.setCurrentText(self.project.framing)
         self.board_size.setValue(self.project.board_size)
         self.units_combo.setCurrentText(self.project.units)
         self.grid_check.setChecked(self.project.show_grid)
@@ -529,11 +568,15 @@ class MainWindow(QMainWindow):
             self.project.style = self.style_combo.currentText()
             self.project.grid_size = int(self.grid_combo.currentText())
             self.project.palette_size = self.palette_spin.value()
+            self.project.color_style = self.color_style_combo.currentText()
+            self.project.framing = self.framing_combo.currentText()
             self.project.pattern = generate_pattern(
                 self.project.source_image,
                 self.project.grid_size,
                 self.project.palette_size,
                 self.project.style,
+                self.project.color_style,
+                self.project.framing,
             )
             self.canvas.set_pattern(self.project.pattern)
             self.refresh_palette()
@@ -612,6 +655,52 @@ class MainWindow(QMainWindow):
                 self.statusBar().showMessage("Project saved", 3000)
         except Exception as exc:
             QMessageBox.critical(self, "Could not save project", str(exc))
+
+    def check_for_updates(self, _checked=False) -> None:
+        if self._checking_for_updates:
+            self.statusBar().showMessage("Already checking for updates…", 2500)
+            return
+        self._checking_for_updates = True
+        self.statusBar().showMessage("Checking GitHub for updates…")
+
+        def worker() -> None:
+            try:
+                self.update_check_finished.emit(fetch_latest_release(), "")
+            except Exception as exc:
+                self.update_check_finished.emit(None, str(exc))
+
+        threading.Thread(target=worker, name="quiltforge-update-check", daemon=True).start()
+
+    def _finish_update_check(self, release: ReleaseInfo | None, error: str) -> None:
+        self._checking_for_updates = False
+        if error or release is None:
+            self.statusBar().showMessage("Update check failed", 4000)
+            QMessageBox.warning(
+                self,
+                "Could not check for updates",
+                "QuiltForge could not reach GitHub. Check your internet connection and try again.\n\n"
+                f"Details: {error}",
+            )
+            return
+        if not update_available(__version__, release.version):
+            self.statusBar().showMessage("QuiltForge is up to date", 4000)
+            QMessageBox.information(
+                self,
+                "QuiltForge is up to date",
+                f"You are running the latest version ({__version__}).",
+            )
+            return
+
+        self.statusBar().showMessage(f"QuiltForge {release.version} is available", 5000)
+        message = QMessageBox(self)
+        message.setIcon(QMessageBox.Icon.Information)
+        message.setWindowTitle("A QuiltForge update is available")
+        message.setText(f"QuiltForge {release.version} is ready to download.")
+        message.setInformativeText(f"You currently have version {__version__}. Open the official GitHub download now?")
+        message.setStandardButtons(QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel)
+        message.button(QMessageBox.StandardButton.Open).setText("Download update")
+        if message.exec() == QMessageBox.StandardButton.Open:
+            QDesktopServices.openUrl(QUrl(release.installer_url or release.page_url))
 
     def show_export_menu(self) -> None:
         menu = QMenu(self)

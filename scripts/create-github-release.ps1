@@ -1,7 +1,7 @@
 param(
     [string]$Owner = 'Its-ze',
     [string]$Repo = 'quiltforge',
-    [string]$Version = '1.0.0'
+    [string]$Version = '1.1.0'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -51,9 +51,13 @@ $releaseBody = @{
     target_commitish = 'main'
     name = "QuiltForge $tag"
     body = @"
-Initial Windows release of QuiltForge Barn Quilt Studio.
+QuiltForge Barn Quilt Studio $Version improves the full image-to-pattern experience.
 
 - Turn photographs into Blocks, Triangles, or Diamonds
+- Clear, high-contrast dropdown menus and dialogs
+- Bold, separated paint palettes with cleaner shape sampling
+- Crop or fit the full source image and choose a color treatment
+- Check for updates from inside QuiltForge
 - Adjust the grid, paint palette, and board measurements
 - Autosave and reopen local projects
 - Export numbered PNG, SVG, and printable PDF paint guides
@@ -82,4 +86,3 @@ Upload-ReleaseAsset $headers $release.upload_url $installer 'application/vnd.mic
 Upload-ReleaseAsset $headers $release.upload_url $portable 'application/zip'
 Upload-ReleaseAsset $headers $release.upload_url $checksums 'text/plain'
 Write-Host "Release: $($release.html_url)"
-

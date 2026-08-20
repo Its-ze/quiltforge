@@ -60,10 +60,12 @@ class QuiltProject:
     grid_size: int = 8
     palette_size: int = 6
     style: str = "Triangles"
+    color_style: str = "Bold & clean"
+    framing: str = "Crop to square"
     board_size: float = 48.0
     units: str = "in"
     show_grid: bool = True
-    show_labels: bool = True
+    show_labels: bool = False
     pattern: Pattern | None = None
 
     def to_dict(self) -> dict[str, Any]:
@@ -83,10 +85,11 @@ class QuiltProject:
             grid_size=int(data.get("grid_size", 8)),
             palette_size=int(data.get("palette_size", 6)),
             style=str(data.get("style", "Triangles")),
+            color_style=str(data.get("color_style", "Bold & clean")),
+            framing=str(data.get("framing", "Crop to square")),
             board_size=float(data.get("board_size", 48.0)),
             units=str(data.get("units", "in")),
             show_grid=bool(data.get("show_grid", True)),
-            show_labels=bool(data.get("show_labels", True)),
+            show_labels=bool(data.get("show_labels", False)),
             pattern=Pattern.from_dict(raw_pattern) if raw_pattern else None,
         )
-

@@ -2,7 +2,14 @@ from pathlib import Path
 
 from PIL import Image
 
-from quiltforge.engine import STYLE_BLOCKS, STYLE_DIAMONDS, STYLE_TRIANGLES, generate_pattern
+from quiltforge.engine import (
+    COLOR_BOLD,
+    FRAMING_FIT,
+    STYLE_BLOCKS,
+    STYLE_DIAMONDS,
+    STYLE_TRIANGLES,
+    generate_pattern,
+)
 
 
 def sample_image(path: Path) -> Path:
@@ -34,6 +41,8 @@ def test_rejects_invalid_settings(tmp_path: Path) -> None:
         {"palette_size": 1},
         {"palette_size": 17},
         {"style": "Circles"},
+        {"color_style": "Muddy"},
+        {"framing": "Stretch"},
     ):
         try:
             generate_pattern(source, **kwargs)
@@ -42,3 +51,18 @@ def test_rejects_invalid_settings(tmp_path: Path) -> None:
         else:
             raise AssertionError(f"Expected ValueError for {kwargs}")
 
+
+def test_bold_palette_keeps_source_colors_separate(tmp_path: Path) -> None:
+    source = sample_image(tmp_path / "source.png")
+    pattern = generate_pattern(
+        source,
+        grid_size=4,
+        palette_size=3,
+        style=STYLE_BLOCKS,
+        color_style=COLOR_BOLD,
+        framing=FRAMING_FIT,
+    )
+    colors = [tuple(int(color[index : index + 2], 16) for index in (1, 3, 5)) for color in pattern.palette]
+    assert any(red > blue * 1.5 for red, _green, blue in colors)
+    assert any(blue > red * 1.5 for red, _green, blue in colors)
+    assert len(set(shape.color_index for shape in pattern.shapes)) == 3
